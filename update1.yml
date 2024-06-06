@@ -58,16 +58,6 @@ stages:
             inputs:
               versionSource: 'spec'
               versionSpec: '16.x'
-          - task: SonarCloudPrepare@1
-            displayName: "Prepare analysis on SonarCloud"
-            inputs:
-              SonarCloud: 'YourSonarCloudServiceConnection'
-              organization: 'your_organization_key'
-              scannerMode: 'CLI'
-              configMode: 'manual'
-              cliProjectKey: 'your_project_key'
-              cliProjectName: 'your_project_name'
-              cliSources: '$(System.DefaultWorkingDirectory)'
           - task: CopyFiles@2
             displayName: "Copy files to Site directory"
             inputs:
@@ -91,12 +81,15 @@ stages:
               targets: 'stage'
               workingDirectory: '$(Targetfolder)\'
               gruntCli: 'node_modules/grunt/bin/grunt'
-          - task: SonarCloudAnalyze@1
-            displayName: "Run SonarCloud analysis"
-          - task: SonarCloudPublish@1
-            displayName: "Publish results on SonarCloud"
+          - task: SonarCloudPrepare@1
             inputs:
-              pollingTimeoutSec: '300'
+              SonarCloud: 'YourSonarCloudServiceConnection'
+              organization: 'your-organization'
+              scannerMode: 'CLI'
+              configMode: 'file'
+              cliProjectKey: 'your-project-key'
+              cliProjectName: 'your-project-name'
+              cliSources: '$(Build.SourcesDirectory)'
           - task: PowerShell@2
             displayName: "Stop CBSiteServices"
             inputs:
@@ -124,10 +117,9 @@ stages:
             env:
               JEST_SLOWMO: '0'
               JEST_HOST: '$(JEST_HOST)'  
-
   - stage: Deploy_To_Production_Servers
     displayName: 'Deploy to ${{ parameters.envName }}'
-    condition: and(succeeded(), eq(variables['Build.Reason'], 'Manual'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'Manual'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))    
     jobs:
       - deployment: deploy_${{ replace(parameters.envName, '-', '_') }}_job
         displayName: Deploy to ${{ parameters.envName }}
@@ -150,7 +142,7 @@ stages:
                   displayName: 'package and upload templates'
                   inputs:
                     filePath: '.\Config Files\deploy_scripts\template_includes_upload.ps1'
-                    pwsh: false
+                    pwsh: false                    
                 - task: PowerShell@2
                   displayName: 'Create Web Servers'
                   inputs:
@@ -166,7 +158,6 @@ stages:
                   inputs:
                     filePath: '.\Config Files\deploy_scripts\terminate_dispatch.ps1'
                     pwsh: false
-
   - stage: Terminate_Old_Webs
     displayName: 'Terminate Old Webs'
     condition: and(succeeded(), eq('${{ parameters.envName }}', 'prod'), eq(${{ parameters.IsRun_Terminate_Old_Webs }}, true), eq(variables['Build.Reason'], 'Manual'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
